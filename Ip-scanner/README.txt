@@ -52,6 +52,7 @@ SOC_Scan_Report.xlsx
 Columnas del reporte
 --------------------
 IP
+Domain
 Country (AbuseIPDB)
 VT_Malicious
 VT_Suspicious
