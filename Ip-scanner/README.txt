@@ -47,7 +47,7 @@ Ejemplo de archivo TXT:
 
 4. Al finalizar se generará un archivo Excel:
 
-SOC_Scan_Report.xlsx
+Scanner_Ips_Report.xlsx
 
 Columnas del reporte
 --------------------
