@@ -1,0 +1,177 @@
+import requests
+import time
+import os
+import tkinter as tk
+from tkinter import filedialog
+import pycountry
+import pandas as pd
+from dotenv import load_dotenv
+
+# Cargar variables del .env
+load_dotenv()
+
+VT_API_KEY = os.getenv("VT_API_KEY")
+ABUSE_API_KEY = os.getenv("ABUSE_API_KEY")
+
+results = []
+
+def traducir_pais(codigo):
+    try:
+        return pycountry.countries.get(alpha_2=codigo).name
+    except:
+        return codigo
+
+def get_vt_info(ip):
+    url = f"https://www.virustotal.com/api/v3/ip_addresses/{ip}"
+    headers = {"x-apikey": VT_API_KEY}
+
+    response = requests.get(url, headers=headers)
+
+    if response.status_code == 200:
+        data = response.json()
+
+        stats = data["data"]["attributes"]["last_analysis_stats"]
+        code = data["data"]["attributes"].get("country", "Unknown")
+
+        country = traducir_pais(code)
+
+        return stats, country
+
+    else:
+        return None, None
+
+
+def get_abuse_info(ip):
+
+    url = "https://api.abuseipdb.com/api/v2/check"
+
+    querystring = {
+        "ipAddress": ip,
+        "maxAgeInDays": "365"
+    }
+
+    headers = {
+        "Key": ABUSE_API_KEY,
+        "Accept": "application/json"
+    }
+
+    response = requests.get(url, headers=headers, params=querystring)
+
+    if response.status_code == 200:
+
+        data = response.json()["data"]
+
+        code = data.get("countryCode", "Unknown")
+
+        country = traducir_pais(code)
+
+        return {
+            "abuseScore": data["abuseConfidenceScore"],
+            "totalReports": data["totalReports"],
+            "country": country
+        }
+
+    else:
+        return None
+
+
+def scan_ip(ip):
+
+    print(f"\n🟦 Analizando IP: {ip}")
+
+    vt_data, vt_country = get_vt_info(ip)
+    abuse_data = get_abuse_info(ip)
+
+    if abuse_data:
+
+        print(f"[AbuseIPDB] Score: {abuse_data['abuseScore']} | Reports: {abuse_data['totalReports']} | Country: {abuse_data['country']}")
+
+    else:
+
+        print("[AbuseIPDB] No se pudo obtener información.")
+
+    if vt_data:
+
+        print(f"[VirusTotal] Malicious: {vt_data['malicious']} | Suspicious: {vt_data['suspicious']} | Country: {vt_country}")
+
+    else:
+
+        print("[VirusTotal] No se pudo obtener información.")
+
+    # Guardar resultados para Excel
+
+    if vt_data and abuse_data:
+
+        results.append({
+            "IP": ip,
+            "Country": abuse_data["country"],   # SOLO AbuseIPDB
+            "VT_Malicious": vt_data["malicious"],
+            "VT_Suspicious": vt_data["suspicious"],
+            "Abuse_Score": abuse_data["abuseScore"],
+            "Reports": abuse_data["totalReports"]
+        })
+
+
+def seleccionar_archivo():
+
+    root = tk.Tk()
+    root.withdraw()
+
+    archivo = filedialog.askopenfilename(
+        title="Selecciona archivo .txt con IPs",
+        filetypes=[("Archivos de texto", "*.txt")]
+    )
+
+    return archivo
+
+
+def generar_excel():
+
+    if not results:
+        return
+
+    df = pd.DataFrame(results)
+
+    output_file = "Scanner_Ips_Report.xlsx"
+
+    df.to_excel(output_file, index=False)
+
+    print("\n📊 Reporte Excel generado:")
+    print(output_file)
+
+
+def main():
+
+    path = seleccionar_archivo()
+
+    if not path:
+
+        print("❌ No seleccionaste ningún archivo.")
+        return
+
+    with open(path, "r") as file:
+
+        ips = [line.strip() for line in file if line.strip()]
+
+    print("\nSOC Scan 1.0 By TheNephilim")
+    print("https://www.tiktok.com/@thenephilimx")
+
+    for i, ip in enumerate(ips, start=1):
+
+        scan_ip(ip)
+
+        if i % 5 == 0 and i != len(ips):
+
+            print("⏸ Pausa de 45 segundos por límite de consultas...\n")
+            time.sleep(45)
+
+    print("\n" + "═" * 50)
+    print("✅ Análisis completado. Puedes revisar los resultados arriba.")
+
+    generar_excel()
+
+    input("🔚 Presiona Enter para salir...")
+
+
+if __name__ == "__main__":
+    main()
