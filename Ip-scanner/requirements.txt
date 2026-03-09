@@ -3,3 +3,4 @@ pycountry
 pandas
 openpyxl
 python-dotenv
+xlsxwriter
